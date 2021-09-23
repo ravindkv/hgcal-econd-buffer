@@ -188,9 +188,11 @@ for job in jobs[args.i*args.filesPerJob:(args.i+1)*args.filesPerJob]:
 
 
 
-    for chunkStart in range(0, Nentries, chunkSize):
+    #for chunkStart in range(0, Nentries, chunkSize):
+    for chunkStart in range(0, 1, chunkSize):
         print(chunkStart)
-        fulldf = getDF(_tree, fNumber = job, Nstart=chunkStart, Nstop=chunkStart+chunkSize, layerStart=5, layerStop=9)
+        #fulldf = getDF(_tree, fNumber = job, Nstart=chunkStart, Nstop=chunkStart+chunkSize, layerStart=5, layerStop=9)
+        fulldf = getDF(_tree, fNumber = job, Nstart=chunkStart, Nstop=chunkStart+chunkSize, layerStart=5, layerStop=5)
 
         processDF(fulldf, outputName=outputName, append=append)
 

@@ -11,8 +11,8 @@ t_last = datetime.datetime.now()
 
 import argparse
 parser = argparse.ArgumentParser()
-parser.add_argument('-N',default="40000000")
-#parser.add_argument('-N',default="4000")
+#parser.add_argument('-N',default="40000000")
+parser.add_argument('-N',default="4000")
 parser.add_argument('--source',default="eol")
 args = parser.parse_args()
 
