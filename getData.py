@@ -184,7 +184,7 @@ for job in jobs[args.i*args.filesPerJob:(args.i+1)*args.filesPerJob]:
 
     Nentries = _tree.numentries
 
-    chunkSize=10
+    chunkSize=1
 
 
 

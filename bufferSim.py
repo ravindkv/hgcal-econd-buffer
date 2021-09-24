@@ -12,7 +12,7 @@ t_last = datetime.datetime.now()
 import argparse
 parser = argparse.ArgumentParser()
 #parser.add_argument('-N',default="40000000")
-parser.add_argument('-N',default="4000")
+parser.add_argument('-N',default="400000")
 parser.add_argument('--source',default="eol")
 args = parser.parse_args()
 
@@ -109,8 +109,18 @@ HGROCReadInBuffer.append(data)
 
 #delay between when consecutive L1A's can be transmitted (to be checked if this is supposed to be 40 or 41)
 readInDelay = 40
-
 ReadInDelayCounter=readInDelay
+
+#-----------------------------------
+#Create hist of buffer size for BX
+#-----------------------------------
+nModules=163
+overflows=1536
+#create N histograms of M bins, but locally they get stored as one MxN length array
+hist = np.array([0.]*nModules*overflows)
+#keep track of the starting index of each of the N histograms
+# when we want to fill a binX in one of the histograms, we will actually fill bin X + histStarts
+histStarts = np.arange(nModules)*overflows
 
 for iBX in range(1,N_BX+1):
     if iBX%(N_BX/50)==0:
@@ -143,13 +153,14 @@ for iBX in range(1,N_BX+1):
         L1ACount += 1
         ReadInDelayCounter = readInDelay
         data = HGROCReadInBuffer[0]
-
         HGROCReadInBuffer = HGROCReadInBuffer[1:]
-
         for i in range(len(econs)): 
             econs[i].write(data.copy(), iBX)
+        #buffer size hist
+        buffSize = data
+        hist[buffSize+histStarts] += 1
 
-
+print("buffHist=", hist.reshape(nModules,overflows).tolist())
 print(f'{L1ACount} L1As issued')
 print()
 for i in range(len(econs)):
