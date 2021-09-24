@@ -12,7 +12,7 @@ t_last = datetime.datetime.now()
 import argparse
 parser = argparse.ArgumentParser()
 #parser.add_argument('-N',default="40000000")
-parser.add_argument('-N',default="400000")
+parser.add_argument('-N',default="4000")
 parser.add_argument('--source',default="eol")
 args = parser.parse_args()
 
@@ -111,31 +111,22 @@ HGROCReadInBuffer.append(data)
 readInDelay = 40
 ReadInDelayCounter=readInDelay
 
-#-----------------------------------
-#Create hist of buffer size for BX
-#-----------------------------------
-nModules=163
-overflows=1536
-#create N histograms of M bins, but locally they get stored as one MxN length array
-hist = np.array([0.]*nModules*overflows)
-#keep track of the starting index of each of the N histograms
-# when we want to fill a binX in one of the histograms, we will actually fill bin X + histStarts
-histStarts = np.arange(nModules)*overflows
-
 for iBX in range(1,N_BX+1):
     if iBX%(N_BX/50)==0:
         t_now = datetime.datetime.now()
         print('BX %i     '%iBX,(t_now-t_last))
         t_last = t_now
 
-    orbitBX = iBX%3564
+    #dataBX  = evt_Data['Words'].add(daq_Data.loc[evt,'TotalWords'],fill_value=0).astype(np.int16).values
+    for i in range(len(econs)):
+        # drain each of the econs
+        econs[i].drain()
+        # make hist of buffer size
+        #econs[i].toHist(dataBX.copy())
 
+    orbitBX = iBX%3564
     #randomly decide if an L1A is issued in this BX
     hasL1A = np.random.uniform()<1./triggerRate and bunchStructure[orbitBX]
-
-    # drain each of the econs
-    for i in range(len(econs)):
-        econs[i].drain()
 
     # remove one from read in delay counter
     if ReadInDelayCounter >0:
@@ -156,11 +147,7 @@ for iBX in range(1,N_BX+1):
         HGROCReadInBuffer = HGROCReadInBuffer[1:]
         for i in range(len(econs)): 
             econs[i].write(data.copy(), iBX)
-        #buffer size hist
-        buffSize = data
-        hist[buffSize+histStarts] += 1
 
-print("buffHist=", hist.reshape(nModules,overflows).tolist())
 print(f'{L1ACount} L1As issued')
 print()
 for i in range(len(econs)):
@@ -169,4 +156,5 @@ for i in range(len(econs)):
     print('maxSize=',econs[i].maxSize.tolist())
     print('maxBX_First=',econs[i].maxBX_First.tolist())
     print('maxBX_Last=',econs[i].maxBX_Last.tolist())
+    print("buffHist=", econs[i].hist.reshape(163,1536).tolist())
     print()
