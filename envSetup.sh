@@ -7,8 +7,10 @@ source $LCG/setup.sh
 python -m venv --copies $NAME
 source $NAME/bin/activate
 python -m pip install setuptools pip --upgrade
-#python -m pip install uproot
+python -m pip install uproot
 python -m pip install uproot3
+python -m pip install awkward 
+python -m pip install notebook 
 python -m pip install pyjet
 python -m pip install bitstruct
 
