@@ -14,6 +14,8 @@ else
     cd ${_CONDOR_SCRATCH_DIR}
     echo ${_CONDOR_SCRATCH_DIR}
     tar --strip-components=1 -zxvf ECOND_Buffer.tar.gz
+    tar -zxf hgcalEnv.tar.gz
+    rm hgcalEnv.tar.gz
     source hgcalEnv/bin/activate
 fi
 python bufferSim.py --source ${sampleType}
@@ -22,6 +24,6 @@ if [ -z ${_CONDOR_SCRATCH_DIR} ] ; then
     echo "Running Interactively" ; 
 else
     echo "Cleanup" 
-    rm -r Data
-    rm -r hgcalEnv
+    rm -r *.csv
+    rm -r *.gz
 fi

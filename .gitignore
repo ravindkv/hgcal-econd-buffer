@@ -1,4 +1,6 @@
-Data
-hgcalEnv
+hgcalEnv.tar.gz
+condor*/tmpSub
 __pycache__
-condor/tmpSub
+hgcalEnv
+.ipynb*
+*.csv

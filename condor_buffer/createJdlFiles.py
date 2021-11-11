@@ -9,6 +9,6 @@ condorLogDir = "log"
 tarFile = "tmpSub/ECOND_Buffer.tar.gz"
 if os.path.exists("../hists"):
     os.system("rm -r ../hists")
-os.system("tar -zcvf %s ../../hgcal-econd-buffer --exclude condor --exclude .git"%tarFile)
+os.system("tar -zcvf %s ../../hgcal-econd-buffer --exclude condor* --exclude hgcalEnv  --exclude .git"%tarFile)
 os.system("cp runBufferSim.sh tmpSub/")
 os.system("cp submitCondorJob.jdl tmpSub/")

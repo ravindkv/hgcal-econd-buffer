@@ -9,7 +9,8 @@ t_start = datetime.datetime.now()
 t_last = datetime.datetime.now()
 
 parser = argparse.ArgumentParser()
-parser.add_argument('-N',default="4000000")
+#parser.add_argument('-N',default="4000000")
+parser.add_argument('-N',default="40000")
 parser.add_argument('--files', default=1, type=int)
 parser.add_argument('--source',default="eol")
 args = parser.parse_args()
@@ -30,13 +31,9 @@ elif args.source=="startup":
 else:
     print('unknown input')
     exit()
-for i in range(args.files):
-    fileName = f'Data/%s_DAQ_data_{i}.csv'%fName
-    print(fileName)
-    if i==0:
-        daq_Data = pd.read_csv(fileName)[branchList]
-    else:
-        daq_Data = pd.concat([daq_Data, pd.read_csv(fileName)[branchList]])
+
+fileName = f'dataZS_merged.csv'
+daq_Data = pd.read_csv(fileName)[branchList]
 print(len(daq_Data))
 
 #get a list of the unique entry numbers

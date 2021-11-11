@@ -23,7 +23,7 @@ Log    = %s/log_$(cluster)_$(process).condor\n\n'%(condorLogDir, condorLogDir, c
 #----------------------------------------
 #Create jdl files
 #----------------------------------------
-condorOutDir = "/eos/uscms/store/user/rverma/Output/HGCAL_Concentrator/" 
+condorOutDir = "/eos/uscms/store/user/rverma/Output/cms-hgcal-econd/ntuple"
 os.system("eos root://cmseos.fnal.gov mkdir -p %s"%condorOutDir)
 subFile = open('tmpSub/condorSubmit.sh','w')
 f = open('gsd_ttbar_path.txt', 'r')

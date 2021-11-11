@@ -1,17 +1,28 @@
-import uproot3
+import uproot4
+import awkward as ak
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
+import ROOT
+
+import os
+import sys
+sys.path.insert(0, "%s/hgcalEnv/lib/python3.6/site-packages/"%os.getcwd())
+
 import argparse
 parser = argparse.ArgumentParser()
-parser.add_argument('-i',default=0,type=int)
-parser.add_argument('--filesPerJob',default=10,type=int)
-parser.add_argument('--source',default="eol")
+parser.add_argument('--inputFile',default="ntuple_Events_4807434_0.root")
+parser.add_argument('--outputFile',default="data_Events_4807336_0.csv")
+parser.add_argument('--job',default=1,type=int)
+parser.add_argument('--layerStart',default=5)
+parser.add_argument('--layerStop',default=9)
+parser.add_argument('--chunkSize',default=10,type=int)
+parser.add_argument('--maxEvents',default=None, type=int)
 args = parser.parse_args()
+fName = "root://cmseos.fnal.gov//store/user/rverma/Output/cms-hgcal-econd/ntuple/%s"%args.inputFile
 
 pd.options.mode.chained_assignment = None
-
 adcLSB_ = 100./1024.
 tdcLSB_ = 10000./4096.
 tdcOnsetfC_ = 60.
@@ -26,53 +37,17 @@ calibrationCells = pd.read_csv('geomInfo/calibrationCells.csv')
 waferRemap = pd.read_csv('geomInfo/WaferNumberingMatch.csv')[['layer','waferu','waferv','C1_waferu','C1_waferv','Cassette']]
 waferRemap.set_index(['layer','waferu','waferv'],inplace=True)
 
-
-def getTree(fNumber=1,fNameBase = 'root://cmseos.fnal.gov//store/user/lpchgcal/ConcentratorNtuples/L1THGCal_Ntuples/TTbar_v11/ntuple_ttbar_ttbar_v11_aged_unbiased_20191101_%i.root'):
-
+def getTree(fName): 
     treeName = 'hgcalTriggerNtuplizer/HGCalTriggerNtuple'
-
-    fName = fNameBase%fNumber
     print ("File %s"%fName)
-
     try:
-        _tree = uproot3.open(fName,xrootdsource=dict(chunkbytes=1024**3, limitbytes=1024**3))[treeName]
+        _tree = uproot4.open(fName,xrootdsource=dict(chunkbytes=1024**3, limitbytes=1024**3))[treeName]
         return _tree
     except:
         print ("---Unable to open file, skipping")
         return None
 
-
-
-def getDF(_tree, fNumber, Nstart=0, Nstop=2, layerStart=5,layerStop=9):
-
-    branchesOld = ['hgcdigi_zside','hgcdigi_layer','hgcdigi_waferu','hgcdigi_waferv','hgcdigi_cellu','hgcdigi_cellv','hgcdigi_wafertype','hgcdigi_data','hgcdigi_isadc','hgcdigi_dataBXm1','hgcdigi_isadcBXm1']
-    branchesNew = ['hgcdigi_zside','hgcdigi_layer','hgcdigi_waferu','hgcdigi_waferv','hgcdigi_cellu','hgcdigi_cellv','hgcdigi_wafertype','hgcdigi_data_BX2','hgcdigi_isadc_BX2','hgcdigi_toa_BX2','hgcdigi_gain_BX2','hgcdigi_data_BX1','hgcdigi_isadc_BX1']
-    # print(_tree.keys())
-
-    if b'hgcdigi_data' in _tree.keys():
-        fulldf = _tree.pandas.df(branchesOld,entrystart=Nstart,entrystop=Nstop)
-    else:
-        fulldf = _tree.pandas.df(branchesNew,entrystart=Nstart,entrystop=Nstop)
-    fulldf.columns = ['zside','layer','waferu','waferv','cellu','cellv','wafertype','data','isadc','toa','gain','data_BXm1','isadc_BXm1']
-
-    #select layers
-
-    layerCut = (fulldf.layer>=layerStart) & (fulldf.layer<=layerStop)
-    fulldf = fulldf[layerCut]
-
-    #drop subentry from index
-    fulldf.reset_index('subentry',drop=True,inplace=True)
-
-    fulldf.reset_index(inplace=True)
-
-    #update entry number for negative endcap
-    fulldf['entry'] = fulldf['entry'] + fNumber*jobNumber_eventOffset
-    fulldf.loc[fulldf.zside==-1, 'entry'] = fulldf.loc[fulldf.zside==-1, 'entry'] + negZ_eventOffset
-
-    return fulldf
-
-
-def processDF(fulldf, outputName="test.csv", append=False):
+def processDF(fulldf, outputName="test.csv"):
 
     #if data is ADC, charge = data * adcLSB
     #else data is TDC, charge = tdcStart  + data*tdcLSB
@@ -154,51 +129,37 @@ def processDF(fulldf, outputName="test.csv", append=False):
     dfBits.set_index(['entry','layer','waferu','waferv'],inplace=True)
 
     dfBits.sort_index()
-
-    if append:
-        dfBits.to_csv(outputName,mode='a',header=False)
-    else:
-        dfBits.to_csv(outputName)
-
+    dfBits.to_csv(outputName)
     del dfBits
 
+#----------------------------------------
+#Process the tree
+#----------------------------------------
+_tree = getTree(fName)
+Nentries = _tree.num_entries
+print(Nentries)
+branchesOld = ['hgcdigi_zside','hgcdigi_layer','hgcdigi_waferu','hgcdigi_waferv','hgcdigi_cellu','hgcdigi_cellv','hgcdigi_wafertype','hgcdigi_data','hgcdigi_isadc','hgcdigi_dataBXm1','hgcdigi_isadcBXm1']
+branchesNew = ['hgcdigi_zside','hgcdigi_layer','hgcdigi_waferu','hgcdigi_waferv','hgcdigi_cellu','hgcdigi_cellv','hgcdigi_wafertype','hgcdigi_data_BX2','hgcdigi_isadc_BX2','hgcdigi_toa_BX2','hgcdigi_gain_BX2','hgcdigi_data_BX1','hgcdigi_isadc_BX1']
 
-
-if args.source=="old":
-    jobs=[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,20,21,22,23,24,25,27,28,29,30,35,36,37,38,39,43,45,46,47,48,51,53,54,55,56,57,58,59,60,61,62,63,64,65,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,84,85,87,88,89,90,91,92,93,94,95,96,98,99]
-    fNameBase = 'root://cmseos.fnal.gov//store/user/lpchgcal/ConcentratorNtuples/L1THGCal_Ntuples/TTbar_v11/ntuple_ttbar_ttbar_v11_aged_unbiased_20191101_%i.root'
-    outputName = f"Data/updated_ttbar_DAQ_data_{args.i}.csv"
-elif args.source=="startup":
-    print('Startup')
-    jobs=range(60)
-    fNameBase = 'root://cmseos.fnal.gov//store/user/dnoonan/HGCAL_Concentrator/TTbar_v11/ntuple_ttbar_D49_1120pre1_PU200_eolupdate_startup_qua_20200723_%i.root'
-    outputName = f"Data/ttbar_startupNoise_DAQ_data_{args.i}.csv"
-elif args.source=="eol": 
-    jobs=range(1)
-    fNameBase = 'root://cmseos.fnal.gov//store/user/rverma/Output/HGCAL_Concentrator/ntuple_ttbar_D49_1120pre1_PU200_eolupdate_qua_20200723_%i.root'
-    outputName = f"Data/ttbar_eolNoise_DAQ_data_{args.i}.csv"
+if b'hgcdigi_data' in _tree.keys():
+    branches = branchesOld
 else:
-    print('unknown source')
-    exit()
-print('Beginning')
+    branches = branchesNew
 
-append=False
+N=0
+for x in _tree.iterate(branches,entry_stop=args.maxEvents,step_size=args.chunkSize):
+    print(N)
+    N += args.chunkSize
+    layerCut = (x['hgcdigi_layer']>=args.layerStart) & (x['hgcdigi_layer']<=args.layerStop)
+    df = ak.to_pandas(x[layerCut])
+    df.columns = ['zside','layer','waferu','waferv','cellu','cellv','wafertype','data','isadc','toa','gain','data_BXm1','isadc_BXm1']
 
-for job in jobs[args.i*args.filesPerJob:(args.i+1)*args.filesPerJob]:
-    print(job)
+    #drop subentry from index
+    df.reset_index('subentry',drop=True,inplace=True)
+    df.reset_index(inplace=True)
 
-    _tree = getTree(fNumber=job,fNameBase=fNameBase)
+    #update entry number for negative endcap
+    df['entry'] = df['entry'] + args.job*jobNumber_eventOffset
+    df.loc[df.zside==-1, 'entry'] = df.loc[df.zside==-1, 'entry'] + negZ_eventOffset
 
-    Nentries = _tree.numentries
-
-    chunkSize=10
-
-
-
-    for chunkStart in range(0, Nentries, chunkSize):
-        print(chunkStart)
-        fulldf = getDF(_tree, fNumber = job, Nstart=chunkStart, Nstop=chunkStart+chunkSize, layerStart=5, layerStop=9)
-
-        processDF(fulldf, outputName=outputName, append=append)
-
-        append=True
+    processDF(df, outputName=args.outputFile)
