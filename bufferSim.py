@@ -9,9 +9,11 @@ t_start = datetime.datetime.now()
 t_last = datetime.datetime.now()
 
 parser = argparse.ArgumentParser()
-parser.add_argument('-N',default="40000000")
+#parser.add_argument('-N',default="40000000")
+parser.add_argument('-N',default="4000000")
 parser.add_argument('--files', default=1, type=int)
 parser.add_argument('--source',default="eol")
+parser.add_argument('--alsoNZS',default=False, action='store_true')
 args = parser.parse_args()
 
 N_BX=int(eval(args.N))
@@ -41,17 +43,27 @@ entryList = daq_Data.entry.unique()
 #index the pandas datagrame by entry, layer, and waferu/v
 daq_Data.set_index(['entry','layer','waferu','waferv'],inplace=True)
 daq_Data.sort_index(inplace=True)
-
 #creates an 'empty' dataframe to store the number of words from all modules for a given event
 #  this is necessary because of the zero suppression that goes into the MC ntuples, and will keep data in a fixed order
 evt_Data = daq_Data.groupby(['layer','waferu','waferv']).any()[['HDM']]
 evt_Data['Words'] = 0
+#start with an L1A issued in bx 0
+evt = np.random.choice(entryList)
+data  = evt_Data['Words'].add(daq_Data.loc[evt,'TotalWords'],fill_value=0).astype(np.int16).values
+# print('    -- ',data[:3])
+
+if args.alsoNZS:
+    fileName = f'dataNZS_merged.csv'
+    daq_Data_NZS = pd.read_csv(fileName)[branchList]
+    entryList_NZS = daq_Data_NZS.entry.unique()
+    daq_Data_NZS.set_index(['entry','layer','waferu','waferv'],inplace=True)
+    daq_Data_NZS.sort_index(inplace=True)
+    evt_Data_NZS = daq_Data_NZS.groupby(['layer','waferu','waferv']).any()[['HDM']]
 
 print ('Finished Setup')
 t_now = datetime.datetime.now()
 print ('     ',(t_now-t_last))
 t_last = t_now
-
 #LHC bunch structure (1 == filled bunch, where L1A could come from, 0 = empty bunch)
 bunchStructure = np.array(
     ((([1]*72 + [0]*8)*3 +[0]*30)*2 +
@@ -73,17 +85,12 @@ HGROCReadInBuffer = []
 skipReadInBuffer=False
 
 L1ACount=0
-#start with an L1A issued in bx 0
-evt = np.random.choice(entryList)
-data  = evt_Data['Words'].add(daq_Data.loc[evt,'TotalWords'],fill_value=0).astype(np.int16).values
-# print('    -- ',data[:3])
-
 #list to keep track of what would be in the HGCROC buffer
 HGROCReadInBuffer.append(data)
 #delay between when consecutive L1A's can be transmitted (to be checked if this is supposed to be 40 or 41)
 readInDelay = 40
 ReadInDelayCounter=readInDelay
-
+NZS_freq = 0
 for iBX in range(1,N_BX+1):
     if iBX%(N_BX/50)==0:
         t_now = datetime.datetime.now()
@@ -104,10 +111,15 @@ for iBX in range(1,N_BX+1):
 
     # randomly pick an event, and add it to the HGCROC buffer
     if hasL1A:
+        NZS_freq+=1
         evt = np.random.choice(entryList)
         data  = evt_Data['Words'].add(daq_Data.loc[evt,'TotalWords'],fill_value=0).astype(np.int16).values
-
-        HGROCReadInBuffer.append(data)
+        if args.alsoNZS and NZS_freq%100==0:
+            evt_NZS = np.random.choice(entryList_NZS)
+            data_NZS  = evt_Data_NZS['Words'].add(daq_Data_NZS.loc[evt_NZS,'TotalWords'],fill_value=0).astype(np.int16).values
+            HGROCReadInBuffer.append(data+data_NZS)
+        else:
+            HGROCReadInBuffer.append(data)
 
     # add event from HGCROC buffer to the ECOND buffer, accounting for the read in delay (reset read in delay counter as well)
     if len(HGROCReadInBuffer)>0 and (ReadInDelayCounter==0 or skipReadInBuffer):

@@ -1,3 +1,7 @@
+import os
+import sys
+sys.path.insert(0, "%s/hgcalEnv/lib/python3.6/site-packages/"%os.getcwd())
+
 import uproot4
 import awkward as ak
 import pandas as pd
@@ -5,10 +9,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import ROOT
-
-import os
-import sys
-sys.path.insert(0, "%s/hgcalEnv/lib/python3.6/site-packages/"%os.getcwd())
 
 import argparse
 parser = argparse.ArgumentParser()
@@ -19,6 +19,7 @@ parser.add_argument('--layerStart',default=5)
 parser.add_argument('--layerStop',default=9)
 parser.add_argument('--chunkSize',default=10,type=int)
 parser.add_argument('--maxEvents',default=None, type=int)
+parser.add_argument('--isZS',default=False, action='store_true')
 args = parser.parse_args()
 fName = "root://cmseos.fnal.gov//store/user/rverma/Output/cms-hgcal-econd/ntuple/%s"%args.inputFile
 
@@ -48,10 +49,8 @@ def getTree(fName):
         return None
 
 def processDF(fulldf, outputName="test.csv"):
-
     #if data is ADC, charge = data * adcLSB
     #else data is TDC, charge = tdcStart  + data*tdcLSB
-
     fulldf["charge"] = np.where(fulldf.isadc==1,fulldf.data*adcLSB_, (int(tdcOnsetfC_/adcLSB_) + 1.0)*adcLSB_ + fulldf.data*tdcLSB_)
     fulldf["charge_BXm1"] = np.where(fulldf.isadc_BXm1==1,fulldf.data_BXm1*adcLSB_, (int(tdcOnsetfC_/adcLSB_) + 1.0)*adcLSB_ + fulldf.data*tdcLSB_)
 
@@ -67,16 +66,19 @@ def processDF(fulldf, outputName="test.csv"):
     #80fC for 120um, 160 fC for 200 um and 320 fC for 300 um
     BX1_leakage = np.array([0.066/0.934, 0.153/0.847, 0.0963/0.9037])
     fulldf['data'] = fulldf.data-fulldf.data_BXm1*BX1_leakage[fulldf.gain]
-    zsCut = np.where(fulldf.isadc==0, False, fulldf.data>ZS_thr[fulldf.wafertype])
-    df_ZS = fulldf.loc[zsCut]
-
-    df_ZS['BXM1_readout'] = np.where(df_ZS.isadc_BXm1==0, False,  df_ZS.data_BXm1>ZS_thr_BXm1[df_ZS.wafertype])
+    if args.isZS:
+        df_ZS = fulldf.loc[np.where(fulldf.isadc==0, False, fulldf.data>ZS_thr[fulldf.wafertype])]
+        df_ZS['BXM1_readout'] = np.where(df_ZS.isadc_BXm1==0, False,  df_ZS.data_BXm1>ZS_thr_BXm1[df_ZS.wafertype])
+    else:
+        df_ZS = fulldf
+        df_ZS['BXM1_readout'] = np.where(df_ZS.isadc_BXm1==0, False,  df_ZS.data_BXm1)
     df_ZS['TOA_readout'] = (df_ZS.toa>0).astype(int)
     df_ZS['TOT_readout'] = ~df_ZS.isadc
-
-    df_ZS['Bits'] = 16 + 8*(df_ZS.BXM1_readout + df_ZS.TOA_readout)
-
-
+    if args.isZS:
+        df_ZS['Bits'] = 16 + 8*(df_ZS.BXM1_readout + df_ZS.TOA_readout)
+    else:
+        df_ZS['Bits'] = 137*(24 + 8*df_ZS.TOA_readout)
+    print(df_ZS)
     df_ZS.set_index(['zside','layer','waferu','waferv'],inplace=True)
     df_ZS['HDM'] = df_ZS.wafertype==0
 
@@ -93,16 +95,12 @@ def processDF(fulldf, outputName="test.csv"):
     calCellDF = calCellDF.reset_index().set_index(['entry','zside','layer','waferu','waferv'])
 
     df_ZS = pd.concat([df_ZS,calCellDF]).sort_index()
-
-
     group = df_ZS.reset_index()[['entry','zside','layer','waferu','waferv','eLink','HDM','Bits','BXM1_readout','TOA_readout']].groupby(['entry','zside','layer','waferu','waferv','eLink'])
 
     dfBitsElink = group.sum()
     dfBitsElink['HDM'] = group[['HDM']].any()
     dfBitsElink['occ'] = group['HDM'].count()
-
     dfBitsElink['eRxPacket_Words'] = (dfBitsElink.Bits/32+1).astype(int) + 2
-
 
     group = dfBitsElink.reset_index()[['entry','zside','layer','waferu','waferv','HDM','occ','eRxPacket_Words']].groupby(['entry','zside','layer','waferu','waferv'])
     del dfBitsElink
@@ -111,11 +109,9 @@ def processDF(fulldf, outputName="test.csv"):
     dfBits['NonEmptyLinks'] = group[['HDM']].count()
     dfBits['EmptyLinks'] = np.where(dfBits.HDM,12,6) - dfBits.NonEmptyLinks
 
-
     evt_headerWords = 2
     evt_trailerWords = 2
     dfBits['TotalWords'] = evt_headerWords + dfBits.eRxPacket_Words + dfBits.EmptyLinks + evt_trailerWords
-
     dfBits.reset_index(inplace=True)
     dfBits.set_index(['layer','waferu','waferv'],inplace=True)
 
@@ -129,7 +125,10 @@ def processDF(fulldf, outputName="test.csv"):
     dfBits.set_index(['entry','layer','waferu','waferv'],inplace=True)
 
     dfBits.sort_index()
-    dfBits.to_csv(outputName)
+    if args.isZS:
+        dfBits.to_csv("ZS_%s"%outputName)
+    else:
+        dfBits.to_csv("NZS_%s"%outputName)
     del dfBits
 
 #----------------------------------------

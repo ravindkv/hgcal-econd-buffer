@@ -1,5 +1,6 @@
 hgcalEnv.tar.gz
 condor*/tmpSub
+*/*tmp
 __pycache__
 hgcalEnv
 .ipynb*
