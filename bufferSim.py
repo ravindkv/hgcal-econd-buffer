@@ -10,16 +10,15 @@ t_last = datetime.datetime.now()
 
 parser = argparse.ArgumentParser()
 #parser.add_argument('-N',default="40000000")
-parser.add_argument('-N',default="4000000")
+parser.add_argument('-N',default="40000")
 parser.add_argument('--files', default=1, type=int)
 parser.add_argument('--source',default="eol")
-parser.add_argument('--alsoNZS',default=False, action='store_true')
 args = parser.parse_args()
 
 N_BX=int(eval(args.N))
 
 #load in data from csv file outputs of getDAQ_Data.py
-branchList = ['entry','layer','waferu','waferv','HDM','TotalWords']
+branchList = ['entry','layer','waferu','waferv','HDM','TotalWords', "TotalWords_NZS"]
 fName = "ttbar"
 if args.source=="oldTTbar":
     fName = "ttbar"
@@ -51,14 +50,6 @@ evt_Data['Words'] = 0
 evt = np.random.choice(entryList)
 data  = evt_Data['Words'].add(daq_Data.loc[evt,'TotalWords'],fill_value=0).astype(np.int16).values
 # print('    -- ',data[:3])
-
-if args.alsoNZS:
-    fileName = f'dataNZS_merged.csv'
-    daq_Data_NZS = pd.read_csv(fileName)[branchList]
-    entryList_NZS = daq_Data_NZS.entry.unique()
-    daq_Data_NZS.set_index(['entry','layer','waferu','waferv'],inplace=True)
-    daq_Data_NZS.sort_index(inplace=True)
-    evt_Data_NZS = daq_Data_NZS.groupby(['layer','waferu','waferv']).any()[['HDM']]
 
 print ('Finished Setup')
 t_now = datetime.datetime.now()
@@ -113,13 +104,11 @@ for iBX in range(1,N_BX+1):
     if hasL1A:
         NZS_freq+=1
         evt = np.random.choice(entryList)
-        data  = evt_Data['Words'].add(daq_Data.loc[evt,'TotalWords'],fill_value=0).astype(np.int16).values
-        if args.alsoNZS and NZS_freq%100==0:
-            evt_NZS = np.random.choice(entryList_NZS)
-            data_NZS  = evt_Data_NZS['Words'].add(daq_Data_NZS.loc[evt_NZS,'TotalWords'],fill_value=0).astype(np.int16).values
-            HGROCReadInBuffer.append(data+data_NZS)
-        else:
-            HGROCReadInBuffer.append(data)
+        dataStr = "TotalWords"
+        if NZS_freq%100==0:
+            dataStr = "TotalWords_NZS"
+        data  = evt_Data['Words'].add(daq_Data.loc[evt,dataStr],fill_value=0).astype(np.int16).values
+        HGROCReadInBuffer.append(data)
 
     # add event from HGCROC buffer to the ECOND buffer, accounting for the read in delay (reset read in delay counter as well)
     if len(HGROCReadInBuffer)>0 and (ReadInDelayCounter==0 or skipReadInBuffer):

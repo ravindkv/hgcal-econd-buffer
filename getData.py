@@ -19,7 +19,6 @@ parser.add_argument('--layerStart',default=5)
 parser.add_argument('--layerStop',default=9)
 parser.add_argument('--chunkSize',default=10,type=int)
 parser.add_argument('--maxEvents',default=None, type=int)
-parser.add_argument('--isZS',default=False, action='store_true')
 args = parser.parse_args()
 fName = "root://cmseos.fnal.gov//store/user/rverma/Output/cms-hgcal-econd/ntuple/%s"%args.inputFile
 
@@ -52,7 +51,7 @@ def processDF(fulldf, outputName="test.csv"):
     #if data is ADC, charge = data * adcLSB
     #else data is TDC, charge = tdcStart  + data*tdcLSB
     fulldf["charge"] = np.where(fulldf.isadc==1,fulldf.data*adcLSB_, (int(tdcOnsetfC_/adcLSB_) + 1.0)*adcLSB_ + fulldf.data*tdcLSB_)
-    fulldf["charge_BXm1"] = np.where(fulldf.isadc_BXm1==1,fulldf.data_BXm1*adcLSB_, (int(tdcOnsetfC_/adcLSB_) + 1.0)*adcLSB_ + fulldf.data*tdcLSB_)
+    fulldf["charge_BXm1"] = np.where(fulldf.isadc_BXm1==1,fulldf.data_BXm1*adcLSB_, (int(tdcOnsetfC_/adcLSB_) + 1.0)*adcLSB_ + fulldf.data_BXm1*tdcLSB_)
 
     #ZS_thr = np.array([1.03 , 1.715, 2.575]) #0.5 MIP threshold, in fC, as found in CMSSW
     ZS_thr = np.array([5, 5, 5]) #5 ADC threshold for each wafer type
@@ -66,19 +65,11 @@ def processDF(fulldf, outputName="test.csv"):
     #80fC for 120um, 160 fC for 200 um and 320 fC for 300 um
     BX1_leakage = np.array([0.066/0.934, 0.153/0.847, 0.0963/0.9037])
     fulldf['data'] = fulldf.data-fulldf.data_BXm1*BX1_leakage[fulldf.gain]
-    if args.isZS:
-        df_ZS = fulldf.loc[np.where(fulldf.isadc==0, False, fulldf.data>ZS_thr[fulldf.wafertype])]
-        df_ZS['BXM1_readout'] = np.where(df_ZS.isadc_BXm1==0, False,  df_ZS.data_BXm1>ZS_thr_BXm1[df_ZS.wafertype])
-    else:
-        df_ZS = fulldf
-        df_ZS['BXM1_readout'] = np.where(df_ZS.isadc_BXm1==0, False,  df_ZS.data_BXm1)
+    df_ZS = fulldf.loc[np.where(fulldf.isadc==0, False, fulldf.data>ZS_thr[fulldf.wafertype])]
+    df_ZS['BXM1_readout'] = np.where(df_ZS.isadc_BXm1==0, False,  df_ZS.data_BXm1>ZS_thr_BXm1[df_ZS.wafertype])
     df_ZS['TOA_readout'] = (df_ZS.toa>0).astype(int)
     df_ZS['TOT_readout'] = ~df_ZS.isadc
-    if args.isZS:
-        df_ZS['Bits'] = 16 + 8*(df_ZS.BXM1_readout + df_ZS.TOA_readout)
-    else:
-        df_ZS['Bits'] = 137*(24 + 8*df_ZS.TOA_readout)
-    print(df_ZS)
+    df_ZS['Bits'] = 16 + 8*(df_ZS.BXM1_readout + df_ZS.TOA_readout)
     df_ZS.set_index(['zside','layer','waferu','waferv'],inplace=True)
     df_ZS['HDM'] = df_ZS.wafertype==0
 
@@ -100,9 +91,14 @@ def processDF(fulldf, outputName="test.csv"):
     dfBitsElink = group.sum()
     dfBitsElink['HDM'] = group[['HDM']].any()
     dfBitsElink['occ'] = group['HDM'].count()
-    dfBitsElink['eRxPacket_Words'] = (dfBitsElink.Bits/32+1).astype(int) + 2
+    dfBitsElink['eRxPacket_Words'] = np.ceil(dfBitsElink.Bits/32).astype(int) + 2
+    #for HDM, 432 cells, 12 elinks, hence 36 channels
+    #for LDM, 192 cells, 6 elinks, hence 32 channels
+    #However, we assign 37 channels for both
+    dfBitsElink['eRxPacket_Words_NZS'] = np.ceil(37*(24+ 8*dfBitsElink.TOA_readout)/32).astype(int)+2
+    #print(dfBitsElink)
 
-    group = dfBitsElink.reset_index()[['entry','zside','layer','waferu','waferv','HDM','occ','eRxPacket_Words']].groupby(['entry','zside','layer','waferu','waferv'])
+    group = dfBitsElink.reset_index()[['entry','zside','layer','waferu','waferv','HDM','occ','eRxPacket_Words', 'eRxPacket_Words_NZS']].groupby(['entry','zside','layer','waferu','waferv'])
     del dfBitsElink
     dfBits = group.sum()
     dfBits['HDM'] = group[['HDM']].any()
@@ -112,6 +108,7 @@ def processDF(fulldf, outputName="test.csv"):
     evt_headerWords = 2
     evt_trailerWords = 2
     dfBits['TotalWords'] = evt_headerWords + dfBits.eRxPacket_Words + dfBits.EmptyLinks + evt_trailerWords
+    dfBits['TotalWords_NZS'] = evt_headerWords + dfBits.eRxPacket_Words_NZS + evt_trailerWords
     dfBits.reset_index(inplace=True)
     dfBits.set_index(['layer','waferu','waferv'],inplace=True)
 
@@ -125,10 +122,7 @@ def processDF(fulldf, outputName="test.csv"):
     dfBits.set_index(['entry','layer','waferu','waferv'],inplace=True)
 
     dfBits.sort_index()
-    if args.isZS:
-        dfBits.to_csv("ZS_%s"%outputName)
-    else:
-        dfBits.to_csv("NZS_%s"%outputName)
+    dfBits.to_csv("%s"%outputName)
     del dfBits
 
 #----------------------------------------
