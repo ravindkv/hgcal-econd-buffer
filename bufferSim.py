@@ -10,9 +10,11 @@ t_last = datetime.datetime.now()
 
 parser = argparse.ArgumentParser()
 #parser.add_argument('-N',default="40000000")
-parser.add_argument('-N',default="40000")
+parser.add_argument('-N',default="4000000")
+#parser.add_argument('-N',default="40000")
 parser.add_argument('--files', default=1, type=int)
 parser.add_argument('--source',default="eol")
+parser.add_argument('--freqNZS',default=0, type=int)
 args = parser.parse_args()
 
 N_BX=int(eval(args.N))
@@ -81,7 +83,7 @@ HGROCReadInBuffer.append(data)
 #delay between when consecutive L1A's can be transmitted (to be checked if this is supposed to be 40 or 41)
 readInDelay = 40
 ReadInDelayCounter=readInDelay
-NZS_freq = 0
+count = 0
 for iBX in range(1,N_BX+1):
     if iBX%(N_BX/50)==0:
         t_now = datetime.datetime.now()
@@ -102,10 +104,10 @@ for iBX in range(1,N_BX+1):
 
     # randomly pick an event, and add it to the HGCROC buffer
     if hasL1A:
-        NZS_freq+=1
+        count+=1
         evt = np.random.choice(entryList)
         dataStr = "TotalWords"
-        if NZS_freq%100==0:
+        if not args.freqNZS==0 and count%args.freqNZS==0:
             dataStr = "TotalWords_NZS"
         data  = evt_Data['Words'].add(daq_Data.loc[evt,dataStr],fill_value=0).astype(np.int16).values
         HGROCReadInBuffer.append(data)

@@ -7,8 +7,6 @@ else:
     os.makedirs("tmpSub/log")
 condorLogDir = "log"
 tarFile = "tmpSub/HistMain.tar.gz"
-if os.path.exists("../hists"):
-    os.system("rm -r ../hists")
 os.system("cp runGetData.sh tmpSub/")
 os.system("cp ../hgcalEnv.tar.gz tmpSub/")
 os.system("tar -zcf tmpSub/geomInfo.tar.gz ../geomInfo")
@@ -36,10 +34,10 @@ jdlFile.write(common_command)
 job=0
 for line in f:
     job+=1
-    inFile_ = line.strip()
-    inFile = "ntuple_%s"%inFile_
-    outFile = "dataZS_%s"%inFile_.replace("root", "csv")
+    infile_ = line.strip()
+    infile = "ntuple_%s"%infile_
+    outfile = "datazs_%s"%infile_.replace("root", "csv")
     run_command =  \
-    'arguments  = %s %s %s \nqueue 1\n\n' %(inFile, outFile, job)
-    jdlFile.write(run_command)
-jdlFile.close() 
+    'arguments  = %s %s %s \nqueue 1\n\n' %(infile, outfile, job)
+    jdlfile.write(run_command)
+jdlfile.close() 

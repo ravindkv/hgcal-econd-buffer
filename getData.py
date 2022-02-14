@@ -95,7 +95,7 @@ def processDF(fulldf, outputName="test.csv"):
     #for HDM, 432 cells, 12 elinks, hence 36 channels
     #for LDM, 192 cells, 6 elinks, hence 32 channels
     #However, we assign 37 channels for both
-    dfBitsElink['eRxPacket_Words_NZS'] = np.ceil(37*(24+ 8*dfBitsElink.TOA_readout)/32).astype(int)+2
+    dfBitsElink['eRxPacket_Words_NZS'] = np.ceil((37*24+ 8*dfBitsElink.TOA_readout)/32).astype(int)+2
     #print(dfBitsElink)
 
     group = dfBitsElink.reset_index()[['entry','zside','layer','waferu','waferv','HDM','occ','eRxPacket_Words', 'eRxPacket_Words_NZS']].groupby(['entry','zside','layer','waferu','waferv'])
@@ -108,7 +108,8 @@ def processDF(fulldf, outputName="test.csv"):
     evt_headerWords = 2
     evt_trailerWords = 2
     dfBits['TotalWords'] = evt_headerWords + dfBits.eRxPacket_Words + dfBits.EmptyLinks + evt_trailerWords
-    dfBits['TotalWords_NZS'] = evt_headerWords + dfBits.eRxPacket_Words_NZS + evt_trailerWords
+    #dfBits['TotalWords_NZS'] = evt_headerWords + dfBits.eRxPacket_Words_NZS + dfBits.EmptyLinks*(np.ceil(37*24/32).astype(int) +2) +  evt_trailerWords
+    dfBits['TotalWords_NZS'] = evt_headerWords + dfBits.eRxPacket_Words_NZS + 30*dfBits.EmptyLinks +  evt_trailerWords
     dfBits.reset_index(inplace=True)
     dfBits.set_index(['layer','waferu','waferv'],inplace=True)
 

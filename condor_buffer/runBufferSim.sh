@@ -1,7 +1,7 @@
 #!/bin/bash
 
-sampleType=$1
-echo $sampleType
+freqNZS=$1
+echo $freqNZS
 #If running on condor, checkout CMSSW and get extra libraries
 if [ -z ${_CONDOR_SCRATCH_DIR} ] ; then 
     echo "Running Interactively" ; 
@@ -18,7 +18,7 @@ else
     rm hgcalEnv.tar.gz
     source hgcalEnv/bin/activate
 fi
-python bufferSim.py --source ${sampleType}
+python bufferSim.py --freqNZS ${freqNZS}
 
 if [ -z ${_CONDOR_SCRATCH_DIR} ] ; then 
     echo "Running Interactively" ; 
