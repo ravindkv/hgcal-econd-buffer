@@ -4,4 +4,5 @@ condor*/tmpSub
 __pycache__
 hgcalEnv
 .ipynb*
+plots
 *.csv
